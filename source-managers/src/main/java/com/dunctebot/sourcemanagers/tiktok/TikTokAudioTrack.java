@@ -1,19 +1,3 @@
-/*
- * Copyright 2021 Duncan "duncte123" Sterken
- *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *    you may not use this file except in compliance with the License.
- *    You may obtain a copy of the License at
- *
- *        http://www.apache.org/licenses/LICENSE-2.0
- *
- *    Unless required by applicable law or agreed to in writing, software
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *    See the License for the specific language governing permissions and
- *    limitations under the License.
- */
-
 package com.dunctebot.sourcemanagers.tiktok;
 
 import com.dunctebot.sourcemanagers.AbstractDuncteBotHttpSource;
@@ -50,13 +34,13 @@ public class TikTokAudioTrack extends MpegTrack {
                 this.urlCache = loadPlaybackUrl();
             }
 
-            if (this.failedOnce) {
-                return this.urlCache.getRight();
+            if (this.urlCache == null) {
+                throw new FriendlyException("Failed to load TikTok playback URL.", SUSPICIOUS, null);
             }
 
-            return this.urlCache.getLeft();
+            return this.failedOnce ? this.urlCache.getRight() : this.urlCache.getLeft();
         } catch (Exception e) {
-            throw new FriendlyException("Could not load TikTok video", SUSPICIOUS, e);
+            throw new FriendlyException("Could not load TikTok video: " + e.getMessage(), SUSPICIOUS, e);
         }
     }
 
@@ -73,49 +57,39 @@ public class TikTokAudioTrack extends MpegTrack {
             super.loadStream(localExecutor, httpInterface);
         } catch (Exception e) {
             if (this.failedOnce) {
-                throw e;
+                throw new FriendlyException("Failed to load TikTok audio after retrying.", SUSPICIOUS, e);
             }
 
             this.failedOnce = true;
+            this.urlCache = null;  // Limpiar caché antes de intentar recargar
+            this.urlCache = loadPlaybackUrl();
+
+            if (this.urlCache == null) {
+                throw new FriendlyException("Could not retrieve a valid TikTok playback URL.", SUSPICIOUS, e);
+            }
+
             super.loadStream(localExecutor, httpInterface);
         }
     }
 
-    /*@Override
-    protected void loadStream(LocalAudioTrackExecutor localExecutor, HttpInterface httpInterface) throws Exception {
-        final String trackUrl = getPlaybackUrl();
-        log.debug("Starting {} track from URL: {}", getSourceManager().getSourceName(), trackUrl);
-        // Setting contentLength (last param) to null makes it default to Long.MAX_VALUE
-        try (final PersistentHttpStream stream = new PersistentHttpStream(httpInterface, new URI(trackUrl), Units.CONTENT_LENGTH_UNKNOWN)) {
-            // dump the stream
-            Files.copy(
-                stream,
-                new File("DUMP.raw").toPath(),
-                StandardCopyOption.REPLACE_EXISTING
-            );
-
-            processDelegate(createAudioTrack(this.trackInfo, stream), localExecutor);
-        }
-    }*/
-
     protected Pair<String, String> loadPlaybackUrl() throws Exception {
-        final TikTokAudioSourceManager.MetaData metdata = this.getSourceManager().extractData(
+        TikTokAudioSourceManager.MetaData metadata = this.getSourceManager().extractData(
             this.trackInfo.author,
             this.trackInfo.identifier
         );
 
-        return new Pair<>(
-            metdata.videoUrl,
-            metdata.musicUrl
-        );
+        if (metadata == null || metadata.videoUrl == null || metadata.musicUrl == null) {
+            throw new FriendlyException("Invalid TikTok metadata received.", SUSPICIOUS, null);
+        }
+
+        return new Pair<>(metadata.videoUrl, metadata.musicUrl);
     }
 
     @Override
     protected InternalAudioTrack createAudioTrack(AudioTrackInfo trackInfo, SeekableInputStream stream) {
-        if (this.failedOnce && this.urlCache.getRight().contains(".mp3")) {
+        if (this.failedOnce && this.urlCache != null && this.urlCache.getRight() != null && this.urlCache.getRight().contains(".mp3")) {
             return new Mp3AudioTrack(trackInfo, stream);
         }
-
         return super.createAudioTrack(trackInfo, stream);
     }
 
