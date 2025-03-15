@@ -31,16 +31,13 @@ import java.util.stream.Collectors;
 import static com.dunctebot.sourcemanagers.Utils.fakeChrome;
 
 public class TikTokAudioTrackHttpManager implements AutoCloseable {
-//    private String cookie = null;
-
-    protected final HttpInterfaceManager httpInterfaceManager;
-//    private final CookieSpec cookieSpec = new BrowserCompatSpec(); // DefaultCookieSpec does not parse (was BrowserCompatSpec)
+    private final HttpInterfaceManager httpInterfaceManager;
     private final CookieStore cookieStore = new BasicCookieStore();
 
     public TikTokAudioTrackHttpManager() {
         httpInterfaceManager = HttpClientTools.createDefaultThreadLocalManager();
 
-        httpInterfaceManager.configureBuilder((builder) -> {
+        httpInterfaceManager.configureBuilder(builder -> {
             builder.setDefaultCookieStore(cookieStore);
         });
 
@@ -51,29 +48,9 @@ public class TikTokAudioTrackHttpManager implements AutoCloseable {
         return httpInterfaceManager.getInterface();
     }
 
-    /*protected void loadCookies() throws IOException, MalformedCookieException {
-        try (final HttpInterface httpInterface = httpInterfaceManager.getInterface()) {
-            final HttpGet httpGet = new HttpGet("https://www.tiktok.com/");
-
-            try (final CloseableHttpResponse response = httpInterface.execute(httpGet)) {
-                final CookieOrigin origin = new CookieOrigin(".tiktok.com", 443, "/", true);
-
-                final List<Cookie> cookies = new ArrayList<>();
-
-                for (final Header header : response.getHeaders("Set-Cookie")) {
-                    cookies.addAll(cookieSpec.parse(header, origin));
-                }
-
-                this.cookie = cookies.stream()
-                    .map((c) -> c.getName() + '=' + c.getValue())
-                    .collect(Collectors.joining("; "));
-            }
-        }
-    }*/
-
     @Override
-    public void close() throws Exception {
-        this.httpInterfaceManager.close();
+    public void close() {
+        httpInterfaceManager.close();
     }
 
     private class TikTokFilter implements HttpContextFilter {
@@ -89,14 +66,12 @@ public class TikTokAudioTrackHttpManager implements AutoCloseable {
 
         @Override
         public void onRequest(HttpClientContext context, HttpUriRequest request, boolean isRepetition) {
-            // set standard headers
-            final boolean isVideo = request.getURI().getPath().contains("video");
+            boolean isVideo = request.getURI().getPath().contains("video");
             fakeChrome(request, isVideo);
 
-            final String testCookie = context.getCookieStore()
-                .getCookies()
+            String testCookie = context.getCookieStore().getCookies()
                 .stream()
-                .map((c) -> c.getName() + '=' + c.getValue())
+                .map(c -> c.getName() + '=' + c.getValue())
                 .collect(Collectors.joining("; "));
 
             request.setHeader("Cookie", testCookie);
