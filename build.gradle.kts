@@ -1,8 +1,6 @@
 plugins {
     java
-    alias(libs.plugins.lavalink) apply false
-    id("com.github.johnrengelman.shadow") version "8.1.1" apply false
-    id("com.github.breadmoirai.github-release") version "2.4.1" apply false
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 java {
@@ -10,8 +8,6 @@ java {
         languageVersion = JavaLanguageVersion.of(17)
     }
 }
-
-
 
 allprojects {
     group = "com.dunctebot"
@@ -44,3 +40,8 @@ tasks.getByName<Test>("test") {
     useJUnitPlatform()
 }
 
+
+tasks.register("buildPlugin", Jar) {
+    archiveClassifier.set("plugin")
+    from(sourceSets.main.get().output)
+}
